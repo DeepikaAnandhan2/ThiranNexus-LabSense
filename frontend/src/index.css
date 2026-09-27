@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background-color: #ffffff;
+}
+
+/* Visible focus outline everywhere - required for keyboard + screen reader use */
+:focus-visible {
+  outline: 3px solid #F97316;
+  outline-offset: 2px;
+}
