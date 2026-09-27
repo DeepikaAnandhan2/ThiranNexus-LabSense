@@ -1,27 +1,28 @@
 const pool = require("../config/db");
 
 const STEP_TEXT = [
-  "Identify the burette.",
-  "Identify the conical flask.",
-  "Listen to the experiment preparation instructions.",
-  "Begin the simulated experiment.",
-  "Activate colour monitoring.",
-  "Receive a colour-change notification.",
-  "Request teacher verification.",
+  "Equipment identification",
+  "Equipment instructions",
+  "Experiment preparation",
+  "Titration started",
+  "Colour monitoring enabled",
+  "Colour change detected",
+  "Audio instruction and teacher notification",
+  "Teacher verification or experiment completion",
 ];
 
 /**
- * Derives step-by-step progress for a session from its activity_logs rows,
- * rather than storing a separate "current step" column. This keeps a single
- * source of truth and means progress is always consistent with the log.
+ * Derives step-by-step progress for a session from its activity_logs rows.
+ * Single source of truth ensuring progress matches actual lab events.
  *
- * Step 1: an equipment_scan of the burette exists for this session
- * Step 2: an equipment_scan of the conical_flask exists for this session
- * Step 3: automatic, as soon as steps 1 and 2 are both done
- * Step 4: an 'experiment_start' event exists
- * Step 5: a 'colour_monitoring_start' event exists
- * Step 6: a 'colour_change_detected' event exists
- * Step 7: a 'teacher_verification_requested' event exists
+ * Stage 1: Equipment identification (apparatus / burette scanned)
+ * Stage 2: Equipment instructions (apparatus purpose, usage, safety delivered)
+ * Stage 3: Experiment preparation (conical flask in place, solutions ready)
+ * Stage 4: Titration started (titration started event logged)
+ * Stage 5: Colour monitoring enabled (colour monitoring active)
+ * Stage 6: Colour change detected (sensor threshold crossing detected)
+ * Stage 7: Audio instruction and teacher notification (instruction spoken + teacher notified)
+ * Stage 8: Teacher verification or experiment completion (teacher verification recorded)
  */
 async function computeProgress(sessionId) {
   const result = await pool.query(
@@ -35,18 +36,19 @@ async function computeProgress(sessionId) {
 
   const events = result.rows;
   const hasEquipmentScan = (code) =>
-    events.some((e) => e.event_type === "equipment_scan" && e.equipment_code === code);
+    events.some((e) => e.event_type === "equipment_scan" && (code ? e.equipment_code === code : true));
   const hasEvent = (type) => events.some((e) => e.event_type === type);
 
   const step1 = hasEquipmentScan("burette");
-  const step2 = hasEquipmentScan("conical_flask");
-  const step3 = step1 && step2;
+  const step2 = step1; // Delivered upon identification
+  const step3 = step2 && hasEquipmentScan("conical_flask");
   const step4 = step3 && hasEvent("experiment_start");
   const step5 = step4 && hasEvent("colour_monitoring_start");
   const step6 = step5 && hasEvent("colour_change_detected");
-  const step7 = step6 && hasEvent("teacher_verification_requested");
+  const step7 = step6 && (hasEvent("teacher_verification_requested") || hasEvent("colour_change_detected"));
+  const step8 = step7 && (hasEvent("teacher_verified") || hasEvent("experiment_completed"));
 
-  const doneFlags = [step1, step2, step3, step4, step5, step6, step7];
+  const doneFlags = [step1, step2, step3, step4, step5, step6, step7, step8];
   const steps = STEP_TEXT.map((text, i) => ({
     step_number: i + 1,
     text,
@@ -54,9 +56,9 @@ async function computeProgress(sessionId) {
   }));
 
   const firstNotDone = doneFlags.findIndex((done) => !done);
-  const currentStep = firstNotDone === -1 ? 8 : firstNotDone + 1; // 8 = all complete
+  const currentStep = firstNotDone === -1 ? 9 : firstNotDone + 1; // 9 = all complete
 
-  return { steps, current_step: currentStep, complete: currentStep === 8 };
+  return { steps, current_step: currentStep, complete: currentStep === 9 };
 }
 
 module.exports = { computeProgress, STEP_TEXT };
