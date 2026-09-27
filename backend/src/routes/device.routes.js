@@ -142,6 +142,8 @@ router.post(
         type: "equipment_scan",
         session_id: session ? session.id : null,
         equipment_name: equipment.name,
+        equipment,
+        activity_log_id: logResult.rows[0].id,
         is_simulated: isSimulated,
         created_at: logResult.rows[0].created_at,
       });
